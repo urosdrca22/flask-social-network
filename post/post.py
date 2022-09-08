@@ -18,7 +18,7 @@ def index():
     return json.dumps(posts)
 
 @app.route('/create', methods=('GET', 'POST'))
-def create():
+def create_post():
     if request.method == 'POST':
         body = request.data
         response = json.loads(body)
@@ -33,4 +33,4 @@ def create():
         conn.commit()
         conn.close()
 
-    return ('test')
+    return (response)
