@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h1>{% block title %} List of Users {% endblock %}</h1>
+    {% for users in users %}
+        <a href="#">
+            <h2>{{ users['username'] }}</h2>
+        </a>
+        <span class="badge badge-primary">{{ users['email'] }}</span>
+        <hr>
+    {% endfor %}
+{% endblock %}
