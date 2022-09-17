@@ -1,8 +1,11 @@
+from lib2to3.pgen2 import token
 import sqlite3
 import json
-from flask import Flask, render_template, request, url_for, redirect, session
-from flask_session import Session
+from flask import Flask, render_template, request, jsonify, make_response
+import jwt 
+import datetime
 import requests
+from functools import wraps
 
 
 def get_db_connection():  # izmeniti posle
@@ -13,8 +16,31 @@ def get_db_connection():  # izmeniti posle
 app = Flask(__name__)
 SESSION_TYPE = 'filesystem'
 app.config.from_object(__name__)
-Session(app)
 app.config['SECRET_KEY'] = 'e57c08e5c755790bcaa474f8'
+
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+
+        if 'x-access-token' in request.headers:
+            token = request.headers['x-access-token']
+
+        if not token:
+            return jsonify({'message': 'Token is missing'}), 401
+
+        try:
+            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms="HS256")
+            conn = get_db_connection()
+            current_user = conn.execute(
+            f"SELECT * FROM users WHERE id='{data['id']}'").fetchone()
+            current_user = dict(current_user)
+        except:
+            return jsonify({'mesage': 'Token is invalid'}), 401
+
+        return f(current_user, *args, **kwargs)
+
+    return decorated
 
 @app.route('/')
 def index():
@@ -22,8 +48,17 @@ def index():
     users = conn.execute('SELECT * FROM users').fetchall()
     conn.close()
     users = [dict(row) for row in users]
-    return json.dumps(users) 
-    
+    return json.dumps(users)
+
+@app.route('/unprotected')
+def unprotected():
+    return jsonify({'message': 'Anyone can view this'})
+
+@app.route('/protected')
+@token_required
+def protected(current_user):
+    return current_user
+
 @app.route('/register', methods=('GET', 'POST'))
 def register_page():
     if request.method == 'POST':
@@ -44,36 +79,33 @@ def register_page():
 
     return render_template('register.html')
 
-@app.route('/login', methods=('GET', 'POST'))
+
+@app.route('/login')
 def login():
-    if request.method == 'POST': #proveri je l mora
-        body = request.data
-        response = json.loads(body)
-        username = response['username']
-        password = response['password']
+    auth = request.authorization
+    if auth:
         conn = get_db_connection()
-        attempted_user = conn.execute(
-            "SELECT * FROM users WHERE username=? AND password_hash=?", [username, password]).fetchone()
-        
-        if attempted_user:
-            authenticated_user = dict(attempted_user)
-            current_user_id = authenticated_user['id']
-            session['user_id'] = current_user_id
+        user = conn.execute(
+            f"SELECT * FROM users WHERE username='{auth.username}'").fetchone()
+        user = dict(user)
+        user_id = user['id']
+        token = jwt.encode({ 'id' : user_id, 'exp' : datetime.datetime.utcnow() + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'])
+        return jsonify({'token' : token})
 
-    return (session['user_id'])
+    return make_response('Could not verify!', 401, {'WWW-Authenticate' : 'Basic realm="Login Required"'})
 
-@app.route('/newpost', methods=('GET', 'POST'))
-def new_post():
-    current_user_id = session['user_id']
-    if request.method == 'POST':
-        payload = {'title': 'bla',
-                   'content': 'blablabla',
-                   'user_id': current_user_id}
-        r = requests.post('http://127.0.0.1:3000/create', json=payload)
+    
+
+@app.route('/newpost', methods=['POST'])
+@token_required
+def new_post(current_user):
+        payload = {'title': 'JWT',
+                   'content': 'JWT Auth Test ',
+                   'user_id': current_user['id']}
+        r = requests.post('http://127.0.0.1:5000/create', json=payload)
         return (payload)
     
 
 """ @app.route('/profile/<id>')
 def user_profile():
     # GET all posts from a user with current id """
-
