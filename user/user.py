@@ -1,12 +1,12 @@
 from lib2to3.pgen2 import token
 import sqlite3
 import json
-from flask import Flask, render_template, request, jsonify, make_response
+from flask import Flask, request, jsonify, make_response
 import jwt 
 import datetime
 import requests
+from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
-
 
 def get_db_connection():  # izmeniti posle
     conn = sqlite3.connect('database.db')
@@ -14,7 +14,6 @@ def get_db_connection():  # izmeniti posle
     return conn
 
 app = Flask(__name__)
-SESSION_TYPE = 'filesystem'
 app.config.from_object(__name__)
 app.config['SECRET_KEY'] = 'e57c08e5c755790bcaa474f8'
 
@@ -59,48 +58,56 @@ def unprotected():
 def protected(current_user):
     return current_user
 
-@app.route('/register', methods=('GET', 'POST'))
+@app.route('/register', methods=['POST'])
 def register_page():
-    if request.method == 'POST':
-        body = request.data
-        response = json.loads(body)
-        print(response)
+    data = request.get_json()
 
-        username = response['username']
-        email_address = response['email_address']
-        password1 = response['password1']
-        password2 = response['password2']
+    hashed_password = generate_password_hash(data['password'], method='sha256')
 
-        conn = get_db_connection()
-        conn.execute("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)",
-                     (username, email_address, password1))
-        conn.commit()
-        conn.close()
+    username = data['username']
+    email_address = data['email_address']
+    password = hashed_password
 
-    return render_template('register.html')
+    conn = get_db_connection()
+    conn.execute("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)",
+                     (username, email_address, password))
+    conn.commit()
+    conn.close()
+
+    return jsonify({'message': 'New user created'})
 
 
 @app.route('/login')
 def login():
     auth = request.authorization
-    if auth:
-        conn = get_db_connection()
-        user = conn.execute(
-            f"SELECT * FROM users WHERE username='{auth.username}'").fetchone()
-        user = dict(user)
-        user_id = user['id']
-        token = jwt.encode({ 'id' : user_id, 'exp' : datetime.datetime.utcnow() + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'])
-        return jsonify({'token' : token})
 
+    if not auth or not auth.username or not auth.password:
+        return make_response('Could not verify!', 401, {'WWW-Authenticate' : 'Basic realm="Login Required"'})
+
+    conn = get_db_connection()
+
+    user = conn.execute(
+        f"SELECT * FROM users WHERE username='{auth.username}'").fetchone()
+    if not user:
+        return make_response('Could not verify!', 401, {'WWW-Authenticate' : 'Basic realm="Login Required"'})
+
+    user = dict(user)
+    password = user['password_hash']
+    user_id = user['id']
+
+    if check_password_hash(password, auth.password):
+        token = jwt.encode({ 'id' : user_id, 'exp' : datetime.datetime.utcnow() + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'])
+        
+        return jsonify({'token' : token})
+    
     return make_response('Could not verify!', 401, {'WWW-Authenticate' : 'Basic realm="Login Required"'})
 
-    
 
 @app.route('/newpost', methods=['POST'])
 @token_required
 def new_post(current_user):
         payload = {'title': 'JWT',
-                   'content': 'JWT Auth Test ',
+                   'content': 'JWT Auth Test 2',
                    'user_id': current_user['id']}
         r = requests.post('http://127.0.0.1:5000/create', json=payload)
         return (payload)
