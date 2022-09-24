@@ -49,21 +49,11 @@ def index():
     users = [dict(row) for row in users]
     return json.dumps(users)
 
-@app.route('/unprotected')
-def unprotected():
-    return jsonify({'message': 'Anyone can view this'})
-
-@app.route('/protected')
-@token_required
-def protected(current_user):
-    return current_user
-
 @app.route('/register', methods=['POST'])
 def register_page():
     data = request.get_json()
 
     hashed_password = generate_password_hash(data['password'], method='sha256')
-
     username = data['username']
     email_address = data['email_address']
     password = hashed_password
@@ -85,19 +75,16 @@ def login():
         return make_response('Could not verify!', 401, {'WWW-Authenticate' : 'Basic realm="Login Required"'})
 
     conn = get_db_connection()
-
     user = conn.execute(
         f"SELECT * FROM users WHERE username='{auth.username}'").fetchone()
     if not user:
         return make_response('Could not verify!', 401, {'WWW-Authenticate' : 'Basic realm="Login Required"'})
-
     user = dict(user)
     password = user['password_hash']
     user_id = user['id']
 
     if check_password_hash(password, auth.password):
         token = jwt.encode({ 'id' : user_id, 'exp' : datetime.datetime.utcnow() + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'])
-        
         return jsonify({'token' : token})
     
     return make_response('Could not verify!', 401, {'WWW-Authenticate' : 'Basic realm="Login Required"'})
@@ -106,13 +93,22 @@ def login():
 @app.route('/newpost', methods=['POST'])
 @token_required
 def new_post(current_user):
-        payload = {'title': 'JWT',
-                   'content': 'JWT Auth Test 2',
+        data = request.get_json()
+        payload = {'title': data['title'],
+                   'content': data['content'],
                    'user_id': current_user['id']}
         r = requests.post('http://127.0.0.1:5000/create', json=payload)
         return (payload)
     
 
-""" @app.route('/profile/<id>')
-def user_profile():
-    # GET all posts from a user with current id """
+@app.route('/user/<user_id>')
+def user_profile(user_id):
+
+    conn = get_db_connection()
+    user = conn.execute(
+        f"SELECT * FROM users WHERE id='{user_id}'").fetchone()
+    user = dict(user)
+    user_id = user['id']
+
+    return jsonify(user)
+    

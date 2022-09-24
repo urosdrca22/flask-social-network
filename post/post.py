@@ -1,6 +1,6 @@
 import sqlite3
 import json
-from flask import Flask, request, render_template
+from flask import Flask, request, jsonify
 
 def get_db_connection():
     conn = sqlite3.connect('database.db')
@@ -34,3 +34,18 @@ def create_post():
         conn.close()
 
     return (response)
+
+@app.route('/posts/<user_id>')
+def get_posts(user_id):
+    conn = get_db_connection()
+    posts = conn.execute(f"SELECT * FROM posts where user_id='{user_id}'").fetchall()
+    posts = [dict(row) for row in posts]
+    return jsonify(posts)
+
+@app.route('/remove/<id>', methods=['DELETE'])
+def delete_post(id):
+    conn = get_db_connection()
+    conn.execute(f"DELETE FROM posts WHERE id ='{id}'")
+    conn.commit()
+    conn.close()
+    return jsonify({"message" : "Post deleted sucessfully"})
