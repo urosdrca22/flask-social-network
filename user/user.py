@@ -8,7 +8,7 @@ import requests
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 
-def get_db_connection():  # izmeniti posle
+def get_db_connection():
     conn = sqlite3.connect('database.db')
     conn.row_factory = sqlite3.Row
     return conn
@@ -47,7 +47,8 @@ def index():
     users = conn.execute('SELECT * FROM users').fetchall()
     conn.close()
     users = [dict(row) for row in users]
-    return json.dumps(users)
+    
+    return jsonify(users)
 
 @app.route('/register', methods=['POST'])
 def register_page():
@@ -98,15 +99,16 @@ def new_post(current_user):
                    'content': data['content'],
                    'user_id': current_user['id']}
         r = requests.post('http://127.0.0.1:5000/create', json=payload)
+
         return (payload)
     
 
 @app.route('/user/<user_id>')
 def user_profile(user_id):
-
     conn = get_db_connection()
     user = conn.execute(
         f"SELECT * FROM users WHERE id='{user_id}'").fetchone()
+    conn.close()
     user = dict(user)
     user_id = user['id']
 
