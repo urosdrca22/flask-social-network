@@ -1,6 +1,5 @@
 from lib2to3.pgen2 import token
 import sqlite3
-import json
 from flask import Flask, request, jsonify, make_response
 import jwt 
 import datetime
@@ -103,14 +102,14 @@ def new_post(current_user):
         return (payload)
     
 
-@app.route('/user/<user_id>')
-def user_profile(user_id):
+@app.route('/profile')
+@token_required
+def user_profile(current_user):
     conn = get_db_connection()
     user = conn.execute(
-        f"SELECT * FROM users WHERE id='{user_id}'").fetchone()
+        f"SELECT * FROM users WHERE id='{current_user['id']}'").fetchone()
     conn.close()
     user = dict(user)
-    user_id = user['id']
 
     return jsonify(user)
     
