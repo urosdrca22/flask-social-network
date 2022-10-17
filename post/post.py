@@ -27,7 +27,7 @@ def token_required(f):
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms="HS256")
             conn = get_db_connection()
             current_user = conn.execute(
-            f"SELECT * FROM posts WHERE user_id='{data['id']}'").fetchone()
+            f"SELECT * FROM posts WHERE user_id='{data['user_id']}'").fetchone()
             current_user = dict(current_user)
         except:
             return jsonify({'mesage': 'Token is invalid'}), 401
@@ -68,8 +68,11 @@ def get_posts(user_id):
 
     return jsonify(posts)
 
+
+
 @app.route('/remove/<id>', methods=['DELETE'])
-def delete_post(id):
+@token_required
+def delete_post(current_user, id):
     conn = get_db_connection()
     conn.execute(f"DELETE FROM posts WHERE id ='{id}'")
     conn.commit()
@@ -78,7 +81,8 @@ def delete_post(id):
     return jsonify({"message" : "Post deleted sucessfully"})
 
 @app.route('/update/<id>', methods=['PUT'])
-def update_post(id):
+@token_required
+def update_post(current_user, id):
     data = request.get_json()
     conn = get_db_connection()
     post = conn.execute(
@@ -86,7 +90,7 @@ def update_post(id):
     post = dict(post)
     updated_title = data['title']
     updated_content = data['content']
-    post = conn.execute(f"UPDATE posts SET title = {updated_title}, content = {updated_content} WHERE id='{id}'")
+    conn.execute(f"UPDATE posts SET title = '{updated_title}', content = '{updated_content}' WHERE id='{id}'")
     conn.commit()
     conn.close()
 

@@ -31,7 +31,7 @@ def token_required(f):
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms="HS256")
             conn = get_db_connection()
             current_user = conn.execute(
-            f"SELECT * FROM users WHERE id='{data['id']}'").fetchone()
+            f"SELECT * FROM users WHERE id='{data['user_id']}'").fetchone()
             current_user = dict(current_user)
         except:
             return jsonify({'mesage': 'Token is invalid'}), 401
@@ -84,7 +84,7 @@ def login():
     user_id = user['id']
 
     if check_password_hash(password, auth.password):
-        token = jwt.encode({ 'id' : user_id, 'exp' : datetime.datetime.utcnow() + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'])
+        token = jwt.encode({ 'user_id' : user_id, 'exp' : datetime.datetime.utcnow() + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'])
         return jsonify({'token' : token})
     
     return make_response('Could not verify!', 401, {'WWW-Authenticate' : 'Basic realm="Login Required"'})
